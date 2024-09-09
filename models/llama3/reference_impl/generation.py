@@ -35,7 +35,7 @@ from ..api.args import ModelArgs
 from ..api.chat_format import ChatFormat, ModelInput
 from ..api.datatypes import CompletionMessage, Message, StopReason, ToolPromptFormat
 from ..api.tokenizer import Tokenizer
-from .model import Transformer
+from .model import Attention, Transformer
 
 
 @dataclass
@@ -149,13 +149,16 @@ class Llama:
         self,
         model_input: ModelInput,
         max_gen_len: int,
+        hex_result: List = [],
         temperature: float = 0.6,
         top_p: float = 0.9,
         logprobs: bool = False,
     ) -> Generator:
         params = self.model.params
+        for token in model_input.tokens:
+            cprint("Input to model -> " + self.tokenizer.decode([ token ]), "red")
 
-        # cprint("Input to model -> " + self.tokenizer.decode(model_input.tokens), "red")
+
         prompt_tokens = [model_input.tokens]
 
         bsz = 1
@@ -193,7 +196,12 @@ class Llama:
         stop_tokens = torch.tensor(self.tokenizer.stop_tokens)
 
         for cur_pos in range(min_prompt_len, total_len):
+
+            start = time.perf_counter()
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
+            end = time.perf_counter()
+            elapsed_time = end - start
+            cprint(f"Elapsed time: {elapsed_time:.9f} seconds", "blue")
 
             if temperature > 0:
                 probs = torch.softmax(logits[:, -1] / temperature, dim=-1)
@@ -219,6 +227,9 @@ class Llama:
             eos_reached |= (~input_text_mask[:, cur_pos]) & (
                 torch.isin(next_token, stop_tokens)
             )
+            if cur_pos == 17:
+                self.dump_kv(hex_result)
+
             yield TokenResult(
                 token=next_token[0].item(),
                 text=self.tokenizer.decode(next_token.tolist()),
@@ -232,10 +243,29 @@ class Llama:
             prev_pos = cur_pos
             if all(eos_reached):
                 break
+    def dump_kv(self, hash_result: List):
+
+        cprint("kv_cache dumped", "red")
+        model: Transformer = self.model
+        for transformerblock in model.layers:
+            attentionblock: Attention = transformerblock.attention
+            cache_k = attentionblock.cache_k.cpu()
+            cache_v = attentionblock.cache_v.cpu()
+            # print(cache_k[0][0])
+            # print(cache_v[0][0])
+            # print(cache_k.shape)
+            # print(cache_v.shape)
+            ck_bytes = cache_k[:, 0:17]
+            cv_bytes = cache_v[:, 0:17]
+
+            hash_result.append([ck_bytes, cv_bytes])
+
+
 
     def text_completion(
         self,
         prompt: str,
+        hex_result: List,
         temperature: float = 0.6,
         top_p: float = 0.9,
         max_gen_len: Optional[int] = None,
@@ -256,11 +286,13 @@ class Llama:
         for result in self.generate(
             model_input=ModelInput(tokens=prompt_tokens),
             max_gen_len=max_gen_len,
+            hex_result=hex_result,
             temperature=temperature,
             top_p=top_p,
             logprobs=logprobs,
         ):
             tokens.append(result.token)
+            cprint(f"current_token: {result.text}", "green")
             if logprobs:
                 decoded_tokens.append(result.text)
                 token_logprobs.append(result.logprobs)

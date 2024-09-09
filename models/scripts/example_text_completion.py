@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import fire
+import torch
 
 from models.llama3.reference_impl.generation import Llama
 from termcolor import cprint
@@ -25,8 +26,8 @@ def run_main(
     temperature: float = 0.6,
     top_p: float = 0.9,
     max_seq_len: int = 512,
-    max_batch_size: int = 4,
-    max_gen_len: int = 64,
+    max_batch_size: int = 1,
+    max_gen_len: int = 10,
     model_parallel_size: Optional[int] = None,
 ):
     tokenizer_path = str(THIS_DIR.parent / "llama3/api/tokenizer.model")
@@ -38,7 +39,7 @@ def run_main(
         model_parallel_size=model_parallel_size,
     )
 
-    prompts = [
+    old_prompts = [
         "The color of the sky is blue but sometimes it can also be",
         """\
 apple is pomme,
@@ -47,18 +48,32 @@ cherry is""",
         "1, 2, 3, 5, 8, 13",
         "ba ba black sheep, have you any wool?",
     ]
-    for prompt in prompts:
+    # prompts = [
+    #     "The color of the sky is blue but sometimes it can also be",
+    #     "The color of the sky is blue but sometimes it can also be"
+    # ]
+    prompts = [
+        "The color of the sky is blue but sometimes it can also be",
+        "The color of the sky is blue but sometimes it can also be green, red"
+    ]
+    results = []
+    for k, prompt in enumerate(prompts):
+        tensor_result = []
         result = generator.text_completion(
             prompt,
-            temperature=0.6,
+            hex_result=tensor_result,
+            temperature=0,
             top_p=0.9,
             max_gen_len=max_gen_len,
             logprobs=False,
         )
+        results.append(tensor_result)
 
         cprint(f"{prompt}", end="")
         cprint(f"{result.generation}", color="yellow")
+        torch.save(results, f'{k}-kv_cache.pt')
         print("\n==================================\n")
+
 
 
 def main():
