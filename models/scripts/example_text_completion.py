@@ -16,7 +16,7 @@ import torch
 
 from models.llama3.reference_impl.generation import Llama
 from termcolor import cprint
-
+from compare import compare
 
 THIS_DIR = Path(__file__).parent.resolve()
 
@@ -49,13 +49,17 @@ cherry is""",
         "ba ba black sheep, have you any wool?",
     ]
     # prompts = [
-    #     "The color of the sky is blue but sometimes it can also be",
-    #     "The color of the sky is blue but sometimes it can also be"
+    #     "The color of the sky is blue but sometimes it can also be green, red",
+    #     "The color of the sky is blue but sometimes it can also be green, red",
     # ]
     prompts = [
-        "The color of the sky is blue but sometimes it can also be",
-        "The color of the sky is blue but sometimes it can also be green, red"
+        "The color of the sky is blue but sometimes it can also be green, red",
+        "The color of the sky is blue but sometimes it can also",
     ]
+    # prompts = [
+    #     "The color of the sky is blue but sometimes it can also be a little bit",
+    #     "The color of the sky is blue but sometimes it can also be",
+    # ]
     results = []
     for k, prompt in enumerate(prompts):
         tensor_result = []
@@ -71,9 +75,10 @@ cherry is""",
 
         cprint(f"{prompt}", end="")
         cprint(f"{result.generation}", color="yellow")
-        torch.save(results, f'{k}-kv_cache.pt')
         print("\n==================================\n")
 
+    torch.save(results, 'kv_cache.pt')
+    compare(15)
 
 
 def main():

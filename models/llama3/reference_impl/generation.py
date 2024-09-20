@@ -195,12 +195,20 @@ class Llama:
 
         stop_tokens = torch.tensor(self.tokenizer.stop_tokens)
 
-        for cur_pos in range(min_prompt_len, total_len):
+        range_list = []
+        if min_prompt_len > 13:
+            range_list = range(min_prompt_len - 4, min_prompt_len + 1, 1)
+        else:
+            range_list = range(min_prompt_len, total_len)
+
+
+        for cur_pos in range_list:
 
             start = time.perf_counter()
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
             end = time.perf_counter()
             elapsed_time = end - start
+            cprint(f"current pos: {cur_pos}, prev_pos: {prev_pos}")
             cprint(f"Elapsed time: {elapsed_time:.9f} seconds", "blue")
 
             if temperature > 0:
@@ -214,7 +222,8 @@ class Llama:
             next_token = torch.where(
                 input_text_mask[:, cur_pos], tokens[:, cur_pos], next_token
             )
-            tokens[:, cur_pos] = next_token
+            if cur_pos >= min_prompt_len:
+                tokens[:, cur_pos] = next_token
 
             target = tokens[:, prev_pos + 1 : cur_pos + 1]
             if logprobs:
@@ -227,8 +236,10 @@ class Llama:
             eos_reached |= (~input_text_mask[:, cur_pos]) & (
                 torch.isin(next_token, stop_tokens)
             )
-            if cur_pos == 17:
-                self.dump_kv(hex_result)
+
+            dump_layer = 15
+            if cur_pos == dump_layer:
+                self.dump_kv(hex_result, dump_layer)
 
             yield TokenResult(
                 token=next_token[0].item(),
@@ -243,7 +254,7 @@ class Llama:
             prev_pos = cur_pos
             if all(eos_reached):
                 break
-    def dump_kv(self, hash_result: List):
+    def dump_kv(self, hash_result: List, cur_pos: int):
 
         cprint("kv_cache dumped", "red")
         model: Transformer = self.model
@@ -255,8 +266,8 @@ class Llama:
             # print(cache_v[0][0])
             # print(cache_k.shape)
             # print(cache_v.shape)
-            ck_bytes = cache_k[:, 0:17]
-            cv_bytes = cache_v[:, 0:17]
+            ck_bytes = cache_k[:, 0:cur_pos]
+            cv_bytes = cache_v[:, 0:cur_pos]
 
             hash_result.append([ck_bytes, cv_bytes])
 
