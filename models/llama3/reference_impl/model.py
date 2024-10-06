@@ -28,6 +28,10 @@ from ..api import ModelArgs
 # (requirements.txt) of the `llama-models` package.
 
 
+current_token_idx = 0
+current_transformer_layer = 0
+current_result = {}
+
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, eps: float = 1e-6):
         super().__init__()
@@ -39,6 +43,8 @@ class RMSNorm(torch.nn.Module):
 
     def forward(self, x):
         output = self._norm(x.float()).type_as(x)
+        # output : [1, 1, 4096]
+        # dim : 4096
         return output * self.weight
 
 
@@ -122,6 +128,9 @@ class Attention(nn.Module):
         self.n_rep = self.n_local_heads // self.n_local_kv_heads
         self.head_dim = args.dim // args.n_heads
 
+        # the head_dim is 128
+        # the n_kv_heads is 8
+        # print(f"The n_kv_heads are {self.n_kv_heads}")
         self.wq = ColumnParallelLinear(
             args.dim,
             args.n_heads * self.head_dim,
@@ -175,15 +184,44 @@ class Attention(nn.Module):
         freqs_cis: torch.Tensor,
         mask: Optional[torch.Tensor],
     ):
+        global current_transformer_layer
+        global current_token_idx
+        global current_result
+        if current_transformer_layer == 0 and (current_token_idx == 13 or current_token_idx == 14):
+            if "x" not in current_result:
+                current_result["x"] = []
+            current_result["x"].append(x.cpu())
+
         bsz, seqlen, _ = x.shape
-        xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
+        xq = self.wq(x)
+        xk = self.wk(x)
+        xv = self.wv(x)
+
+        # xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
+
+        
+        if current_transformer_layer == 0 and (current_token_idx == 13 or current_token_idx == 14):
+            if "xq" not in current_result:
+                current_result["xq"] = []
+            current_result["xq"].append(xq.cpu())
+
+            if "xk" not in current_result:
+                current_result["xk"] = []
+            current_result["xk"].append(xk.cpu())
+
+            if "xv" not in current_result:
+                current_result["xv"] = []
+            current_result["xv"].append(xv.cpu())
 
         xq = xq.view(bsz, seqlen, self.n_local_heads, self.head_dim)
         xk = xk.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
         xv = xv.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
 
-        # breakpoint()
         xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
+
+        # if current_transformer_layer == 0 and (current_token_idx == 13 or current_token_idx == 14):
+        #     print(f"after rotery xq is {xq}")
+        #     print(f"after rotery xk is {xk}")
 
         self.cache_k = self.cache_k.to(xq)
         self.cache_v = self.cache_v.to(xq)
@@ -269,8 +307,28 @@ class TransformerBlock(nn.Module):
         freqs_cis: torch.Tensor,
         mask: Optional[torch.Tensor],
     ):
+        global current_token_idx
+        global current_transformer_layer
+
+        current_transformer_layer = self.layer_id
+
         h = x + self.attention(self.attention_norm(x), start_pos, freqs_cis, mask)
+
         out = h + self.feed_forward(self.ffn_norm(h))
+
+        # if self.layer_id == 0 and (current_token_idx == 13 or current_token_idx == 14):
+        #     print(f"The input tensor x is {x}")
+        #     print(f"The attention normed x is {self.attention_norm(x)}")
+        #     print(f"The h after attention block is {h}")
+        #     print(f"The out after feed forward block is {out}")
+        # if self.layer_id == 1 and (current_token_idx == 13 or current_token_idx == 14):
+        #     print(f"The input tensor x is {x}")
+        #     print(f"The h after attention block is {h}")
+        #     print(f"The out after feed forward block is {out}")
+        # if self.layer_id == 2 and (current_token_idx == 13 or current_token_idx == 14):
+        #     print(f"The input tensor x is {x}")
+        #     print(f"The h after attention block is {h}")
+        #     print(f"The out after feed forward block is {out}")
         return out
 
 
@@ -303,10 +361,15 @@ class Transformer(nn.Module):
 
     @torch.inference_mode()
     def forward(self, tokens: torch.Tensor, start_pos: int):
+
+        global current_token_idx
+        current_token_idx = start_pos
         _bsz, seqlen = tokens.shape
         h = self.tok_embeddings(tokens)
+        # print(f"the {current_token_idx} token embeddings are {h}")
         self.freqs_cis = self.freqs_cis.to(h.device)
         freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
+        # print(f"The freqs_cis is {freqs_cis}")
 
         mask = None
         if seqlen > 1:
@@ -322,8 +385,11 @@ class Transformer(nn.Module):
                 [torch.zeros((seqlen, start_pos), device=tokens.device), mask]
             ).type_as(h)
 
-        print(mask)
+        if start_pos == 13 and seqlen == 2:
+            h[:, 1, :] = 0
+            pass
         for layer in self.layers:
+            # print(f"It is layer {layer.layer_id} in transformer")
             h = layer(h, start_pos, freqs_cis, mask)
         h = self.norm(h)
         output = self.output(h).float()

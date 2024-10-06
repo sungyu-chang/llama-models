@@ -15,6 +15,7 @@ import fire
 import torch
 
 from models.llama3.reference_impl.generation import Llama
+from models.llama3.reference_impl.model import current_result
 from termcolor import cprint
 from compare import compare
 
@@ -27,7 +28,7 @@ def run_main(
     top_p: float = 0.9,
     max_seq_len: int = 512,
     max_batch_size: int = 1,
-    max_gen_len: int = 10,
+    max_gen_len: int = 4,
     model_parallel_size: Optional[int] = None,
 ):
     tokenizer_path = str(THIS_DIR.parent / "llama3/api/tokenizer.model")
@@ -60,6 +61,7 @@ cherry is""",
     #     "The color of the sky is blue but sometimes it can also be a little bit",
     #     "The color of the sky is blue but sometimes it can also be",
     # ]
+    torch.set_printoptions(edgeitems=10)
     results = []
     for k, prompt in enumerate(prompts):
         tensor_result = []
@@ -77,6 +79,52 @@ cherry is""",
         cprint(f"{result.generation}", color="yellow")
         print("\n==================================\n")
 
+    for key, value in current_result.items():
+        print(key)
+        batch = value[0]
+        print(value[0].shape)
+        print(value[1].shape)
+        print(value[2].shape)
+        sequence = torch.concat(( value[1], value[2] ), dim=1)
+        
+        print(batch[:, 0, :])
+        print(value[1])
+        print(batch[:, 1, :])
+        print(value[2])
+        cprint("first row", "green")
+        difference_mask = torch.abs(value[0][:, 0, :] - value[1]) > 1e-8
+
+        # Count the number of different elements
+        count = difference_mask.sum().item()
+
+        # Get the indices where the elements are different
+        different_indices = torch.nonzero(difference_mask, as_tuple=True)
+
+        for index in zip(*different_indices):
+            print(f"batch{index}: {batch[index]} vs sequence{index}: {sequence[index]}")
+        print(f"count of difference is {count}")
+
+        cprint("second row", "green")
+
+        difference_mask = torch.abs(value[0][:, 1, :] - value[2]) > 1e-8
+
+        # Count the number of different elements
+        count = difference_mask.sum().item()
+
+        # Get the indices where the elements are different
+        different_indices = torch.nonzero(difference_mask, as_tuple=True)
+
+        print(f"There are {count} different elements.")
+        # for index in zip(*different_indices):
+        #     print(f"batch{index}: {batch[index]} vs sequence{index}: {sequence[index]}")
+
+        # if torch.allclose(batch[:, 1, :], value[2], rtol=0):
+        #     print(f"{key} is equal")
+        # else:
+        #     print(f"{key} is not equal")
+
+
+    # dump the KV cache
     torch.save(results, 'kv_cache.pt')
     compare(15)
 

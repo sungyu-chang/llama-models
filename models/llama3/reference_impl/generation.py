@@ -197,7 +197,7 @@ class Llama:
 
         range_list = []
         if min_prompt_len > 13:
-            range_list = range(min_prompt_len - 4, min_prompt_len + 1, 1)
+            range_list = range(min_prompt_len - 4, min_prompt_len + 1, 2)
         else:
             range_list = range(min_prompt_len, total_len)
 
