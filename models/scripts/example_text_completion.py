@@ -14,7 +14,7 @@ from typing import Optional
 import fire
 import torch
 
-from models.llama3.reference_impl.generation import Llama
+from models.llama3.reference_impl.generation import Llama, dump_layer
 from models.llama3.reference_impl.model import current_result
 from termcolor import cprint
 from compare import compare, compare_elt
@@ -111,7 +111,7 @@ cherry is""",
 
     # dump the KV cache
     torch.save(results, 'kv_cache.pt')
-    compare(15)
+    compare(results, dump_layer)
 
 
 def main():

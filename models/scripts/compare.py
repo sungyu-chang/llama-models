@@ -13,9 +13,10 @@ def compare_elt(t1, t2, print_index=True):
             print(f"t1{index}: {t1[index]} vs t2{index}: {t2[index]}")
     cprint(f"count of difference is {count}", "yellow")
 
-def compare(token_len: int, detail_print = False):
-    results = torch.load('kv_cache.pt')
+def compare(results, token_len: int, detail_print = False):
 
+
+    print(len(results[0]), len(results[1]))
     equal = True
     for tlayer in range(len(results[0])):
         for k in range(2):
@@ -45,5 +46,7 @@ def compare(token_len: int, detail_print = False):
         cprint("KV is not equal", "light_green")
 
 if __name__ == "__main__":
-    compare(15, True)
+    results = torch.load('kv_cache.pt')
+    from ..llama3.reference_impl.generation import dump_layer
+    compare(results, dump_layer, True)
 

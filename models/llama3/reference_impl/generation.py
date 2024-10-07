@@ -37,6 +37,7 @@ from ..api.datatypes import CompletionMessage, Message, StopReason, ToolPromptFo
 from ..api.tokenizer import Tokenizer
 from .model import Attention, Transformer
 
+dump_layer = 17
 
 @dataclass
 class CompletionPrediction:
@@ -195,11 +196,9 @@ class Llama:
 
         stop_tokens = torch.tensor(self.tokenizer.stop_tokens)
 
-        range_list = []
+        range_list = range(min_prompt_len, total_len)
         if min_prompt_len > 13:
             range_list = range(min_prompt_len - 4, min_prompt_len + 1, 2)
-        else:
-            range_list = range(min_prompt_len, total_len)
 
 
         for cur_pos in range_list:
@@ -237,7 +236,7 @@ class Llama:
                 torch.isin(next_token, stop_tokens)
             )
 
-            dump_layer = 15
+            global dump_layer
             if cur_pos == dump_layer:
                 self.dump_kv(hex_result, dump_layer)
 
@@ -262,10 +261,6 @@ class Llama:
             attentionblock: Attention = transformerblock.attention
             cache_k = attentionblock.cache_k.cpu()
             cache_v = attentionblock.cache_v.cpu()
-            # print(cache_k[0][0])
-            # print(cache_v[0][0])
-            # print(cache_k.shape)
-            # print(cache_v.shape)
             ck_bytes = cache_k[:, 0:cur_pos]
             cv_bytes = cache_v[:, 0:cur_pos]
 
