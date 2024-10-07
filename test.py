@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import os
 from fairscale.nn.model_parallel.layers import ColumnParallelLinear
+from termcolor import cprint
 
 from fairscale.nn.model_parallel.initialize import (
     initialize_model_parallel,
@@ -105,3 +106,69 @@ different_indices = torch.nonzero(difference_mask, as_tuple=True)
 print(f"There are {count} different elements.")
 for index in zip(*different_indices):
     print(f"batch{index}: {r3[index]} vs sequence{index}: {r4[index]}")
+
+result = torch.load("rt_dump.pt")
+
+cprint("test w dump", "red")
+# breakpoint()
+# wq = result["w"][0]
+# wk = result["w"][1]
+# wv = result["w"][2]
+
+x1 = result["x"][0]
+
+x2 = result["x"][1]
+x3 = result["x"][2]
+
+
+def compare_elt(t1, t2):
+    difference_mask = torch.abs(t1 - t2) > 0
+    count = difference_mask.sum().item()
+
+# Get the indices where the elements are different
+    different_indices = torch.nonzero(difference_mask, as_tuple=True)
+
+    for index in zip(*different_indices):
+        print(f"t1{index}: {t1[index]} vs t2{index}: {t2[index]}")
+    cprint(f"count of difference is {count}", "yellow")
+
+
+# wq is the first place, wk is the second, wv is the third
+cpuresult = {} 
+for i in range(3):
+    w = result["w"][i]
+
+    batch = F.linear(x1, w, None)
+
+    sequence = torch.concat((F.linear(x2, w, None), F.linear(x3, w, None)), dim = 1)
+
+
+
+    compare_elt(batch, sequence)
+    cprint("compare cpu result", "red")
+    cprint(batch, "green")
+    cprint(sequence, "blue")
+    if i == 0:
+        cpuresult["xq"] = [batch, sequence]
+    if i == 1:
+        cpuresult["xk"] = [batch, sequence]
+    if i == 2:
+        cpuresult["xv"] = [batch, sequence]
+
+cprint("compare batch result of xq", "red")
+compare(cpuresult["xq"][0], result["xq"][0])
+
+cprint("compare sequence result of xq", "red")
+compare(cpuresult["xq"][1], torch.concat(( result["xq"][1], result["xq"][2] ), dim = 1))
+
+cprint("compare batch result of xk", "red")
+compare(cpuresult["xk"][0], result["xk"][0])
+
+cprint("compare sequence result of xk", "red")
+compare(cpuresult["xk"][1], torch.concat(( result["xk"][1], result["xk"][2] ), dim = 1))
+
+cprint("compare batch result of xv", "red")
+compare(cpuresult["xv"][0], result["xv"][0])
+
+cprint("compare sequence result of xv", "red")
+compare(cpuresult["xv"][1], torch.concat(( result["xv"][1], result["xv"][2] ), dim = 1))

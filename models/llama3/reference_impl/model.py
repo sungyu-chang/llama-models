@@ -191,13 +191,33 @@ class Attention(nn.Module):
             if "x" not in current_result:
                 current_result["x"] = []
             current_result["x"].append(x.cpu())
+            if "w" not in current_result:
+                current_result["w"] = []
+            current_result["w"].append(self.wq.weight.cpu())
+            current_result["w"].append(self.wk.weight.cpu())
+            current_result["w"].append(self.wv.weight.cpu())
 
         bsz, seqlen, _ = x.shape
-        xq = self.wq(x)
-        xk = self.wk(x)
-        xv = self.wv(x)
 
-        # xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
+        # xcpu = x.cpu()
+        # wq = self.wq.weight.cpu()
+        # wk = self.wk.weight.cpu()
+        # wv = self.wv.weight.cpu()
+        # xq = F.linear(xcpu, wq, None)
+        # xk = F.linear(xcpu, wk, None)
+        # xv = F.linear(xcpu, wv, None)
+        # assert(not self.wq.bias)
+        # assert(not self.wk.bias)
+        # assert(not self.wv.bias)
+        # xq = xq.to(freqs_cis)
+        # xk = xk.to(freqs_cis)
+        # xv = xv.to(freqs_cis)
+        # xq = self.wq(x)
+        # xk = self.wk(x)
+        # xv = self.wv(x)
+
+        xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
+        # breakpoint()
 
         
         if current_transformer_layer == 0 and (current_token_idx == 13 or current_token_idx == 14):
@@ -365,6 +385,7 @@ class Transformer(nn.Module):
         global current_token_idx
         current_token_idx = start_pos
         _bsz, seqlen = tokens.shape
+        # breakpoint()
         h = self.tok_embeddings(tokens)
         # print(f"the {current_token_idx} token embeddings are {h}")
         self.freqs_cis = self.freqs_cis.to(h.device)
@@ -386,7 +407,7 @@ class Transformer(nn.Module):
             ).type_as(h)
 
         if start_pos == 13 and seqlen == 2:
-            h[:, 1, :] = 0
+            # h[:, 1, :] = 0
             pass
         for layer in self.layers:
             # print(f"It is layer {layer.layer_id} in transformer")

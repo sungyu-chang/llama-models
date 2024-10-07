@@ -1,5 +1,5 @@
 import torch
-
+from termcolor import cprint
 
 def compare(token_len: int, detail_print = False):
     results = torch.load('kv_cache.pt')
@@ -28,9 +28,9 @@ def compare(token_len: int, detail_print = False):
                     equal = False
 
     if equal:
-        print("KV is equal")
+        cprint("KV is equal", "light_green")
     else:
-        print("KV is not equal")
+        cprint("KV is not equal", "light_green")
 
 if __name__ == "__main__":
     compare(15, True)

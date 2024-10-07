@@ -21,6 +21,18 @@ from compare import compare
 
 THIS_DIR = Path(__file__).parent.resolve()
 
+def compare_elt(t1, t2, print_index=True):
+    difference_mask = torch.abs(t1 - t2) > 0
+    count = difference_mask.sum().item()
+
+# Get the indices where the elements are different
+    different_indices = torch.nonzero(difference_mask, as_tuple=True)
+
+    if print_index:
+        for index in zip(*different_indices):
+            print(f"t1{index}: {t1[index]} vs t2{index}: {t2[index]}")
+    cprint(f"count of difference is {count}", "yellow")
+
 
 def run_main(
     ckpt_dir: str,
@@ -79,44 +91,28 @@ cherry is""",
         cprint(f"{result.generation}", color="yellow")
         print("\n==================================\n")
 
+    torch.save(current_result, "rt_dump.pt")
     for key, value in current_result.items():
-        print(key)
+
+        if key == "w":
+            continue
+        cprint(f"comapring the value of {key}", "light_blue")
         batch = value[0]
         print(value[0].shape)
         print(value[1].shape)
         print(value[2].shape)
-        sequence = torch.concat(( value[1], value[2] ), dim=1)
         
         print(batch[:, 0, :])
         print(value[1])
         print(batch[:, 1, :])
         print(value[2])
         cprint("first row", "green")
-        difference_mask = torch.abs(value[0][:, 0, :] - value[1]) > 1e-8
 
-        # Count the number of different elements
-        count = difference_mask.sum().item()
-
-        # Get the indices where the elements are different
-        different_indices = torch.nonzero(difference_mask, as_tuple=True)
-
-        for index in zip(*different_indices):
-            print(f"batch{index}: {batch[index]} vs sequence{index}: {sequence[index]}")
-        print(f"count of difference is {count}")
+        compare_elt(value[0][:, 0, :], value[1])
 
         cprint("second row", "green")
 
-        difference_mask = torch.abs(value[0][:, 1, :] - value[2]) > 1e-8
-
-        # Count the number of different elements
-        count = difference_mask.sum().item()
-
-        # Get the indices where the elements are different
-        different_indices = torch.nonzero(difference_mask, as_tuple=True)
-
-        print(f"There are {count} different elements.")
-        # for index in zip(*different_indices):
-        #     print(f"batch{index}: {batch[index]} vs sequence{index}: {sequence[index]}")
+        compare_elt(value[0][:, 1, :], value[2])
 
         # if torch.allclose(batch[:, 1, :], value[2], rtol=0):
         #     print(f"{key} is equal")
