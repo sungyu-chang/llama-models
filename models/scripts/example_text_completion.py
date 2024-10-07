@@ -29,7 +29,7 @@ def run_main(
     top_p: float = 0.9,
     max_seq_len: int = 512,
     max_batch_size: int = 1,
-    max_gen_len: int = 4,
+    max_gen_len: int = 10,
     model_parallel_size: Optional[int] = None,
 ):
     tokenizer_path = str(THIS_DIR.parent / "llama3/api/tokenizer.model")
@@ -90,7 +90,7 @@ cherry is""",
         print(value[0].shape)
         print(value[1].shape)
         print(value[2].shape)
-        
+
         print(batch[:, 0, :])
         print(value[1])
         print(batch[:, 1, :])
@@ -104,15 +104,11 @@ cherry is""",
 
         compare_elt(torch.unsqueeze( value[0][:, 1, :], 1 ), value[2])
 
-        # if torch.allclose(batch[:, 1, :], value[2], rtol=0):
-        #     print(f"{key} is equal")
-        # else:
-        #     print(f"{key} is not equal")
-
 
     # dump the KV cache
     torch.save(results, 'kv_cache.pt')
-    compare(results, dump_layer)
+    if len(results) >= 2:
+        compare(results, dump_layer)
 
 
 def main():
