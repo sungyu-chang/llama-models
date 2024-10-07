@@ -2,6 +2,7 @@ import torch
 from termcolor import cprint
 
 def compare_elt(t1, t2, print_index=True):
+
     difference_mask = torch.abs(t1 - t2) > 0
     count = difference_mask.sum().item()
 
@@ -16,7 +17,9 @@ def compare_elt(t1, t2, print_index=True):
 def compare(results, token_len: int, detail_print = False):
 
 
-    print(len(results[0]), len(results[1]))
+    if len(results[0]) != len(results[1]):
+        cprint("the shape of two tensor is different", "red")
+        return
     equal = True
     for tlayer in range(len(results[0])):
         for k in range(2):

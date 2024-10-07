@@ -97,11 +97,12 @@ cherry is""",
         print(value[2])
         cprint("first row", "green")
 
-        compare_elt(value[0][:, 0, :], value[1])
+        print(value[0][:, 0, :].shape)
+        compare_elt(torch.unsqueeze( value[0][:, 0, :], 1 ), value[1])
 
         cprint("second row", "green")
 
-        compare_elt(value[0][:, 1, :], value[2])
+        compare_elt(torch.unsqueeze( value[0][:, 1, :], 1 ), value[2])
 
         # if torch.allclose(batch[:, 1, :], value[2], rtol=0):
         #     print(f"{key} is equal")
