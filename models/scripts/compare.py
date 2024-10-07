@@ -1,6 +1,18 @@
 import torch
 from termcolor import cprint
 
+def compare_elt(t1, t2, print_index=True):
+    difference_mask = torch.abs(t1 - t2) > 0
+    count = difference_mask.sum().item()
+
+# Get the indices where the elements are different
+    different_indices = torch.nonzero(difference_mask, as_tuple=True)
+
+    if print_index:
+        for index in zip(*different_indices):
+            print(f"t1{index}: {t1[index]} vs t2{index}: {t2[index]}")
+    cprint(f"count of difference is {count}", "yellow")
+
 def compare(token_len: int, detail_print = False):
     results = torch.load('kv_cache.pt')
 
@@ -21,10 +33,10 @@ def compare(token_len: int, detail_print = False):
             for tk_idx in range(token_len):
                 if torch.allclose(d1[tk_idx], d2[tk_idx], rtol=1e-8):
                     if detail_print:
-                        print(f"{tk_idx}th token equal")
+                        print(f"{tk_idx + 1}th token equal")
                 else:
                     if detail_print:
-                        print(f"{tk_idx}th token not equal")
+                        print(f"{tk_idx + 1}th token not equal")
                     equal = False
 
     if equal:

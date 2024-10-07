@@ -17,21 +17,10 @@ import torch
 from models.llama3.reference_impl.generation import Llama
 from models.llama3.reference_impl.model import current_result
 from termcolor import cprint
-from compare import compare
+from compare import compare, compare_elt
 
 THIS_DIR = Path(__file__).parent.resolve()
 
-def compare_elt(t1, t2, print_index=True):
-    difference_mask = torch.abs(t1 - t2) > 0
-    count = difference_mask.sum().item()
-
-# Get the indices where the elements are different
-    different_indices = torch.nonzero(difference_mask, as_tuple=True)
-
-    if print_index:
-        for index in zip(*different_indices):
-            print(f"t1{index}: {t1[index]} vs t2{index}: {t2[index]}")
-    cprint(f"count of difference is {count}", "yellow")
 
 
 def run_main(
