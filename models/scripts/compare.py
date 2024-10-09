@@ -35,7 +35,7 @@ def compare(results, token_len: int, detail_print = False):
             d1 = results[0][tlayer][k].squeeze(0)
             d2 = results[1][tlayer][k].squeeze(0)
             for tk_idx in range(token_len):
-                if torch.allclose(d1[tk_idx], d2[tk_idx], rtol=1e-8):
+                if torch.allclose(d1[tk_idx], d2[tk_idx], rtol=0):
                     if detail_print:
                         print(f"{tk_idx + 1}th token equal")
                 else:

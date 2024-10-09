@@ -41,7 +41,7 @@ def run_main(
         model_parallel_size=model_parallel_size,
     )
 
-    old_prompts = [
+    prompts = [
         "The color of the sky is blue but sometimes it can also be",
         """\
 apple is pomme,
@@ -50,18 +50,14 @@ cherry is""",
         "1, 2, 3, 5, 8, 13",
         "ba ba black sheep, have you any wool?",
     ]
-    # prompts = [
-    #     "The color of the sky is blue but sometimes it can also be green, red",
-    #     "The color of the sky is blue but sometimes it can also be green, red",
-    # ]
+    prompts = [
+        "ba ba black sheep, have you any wool?",
+        "ba ba black sheep, have you any wool? yes sir, yes sir, three bags full."
+    ]
     prompts = [
         "The color of the sky is blue but sometimes it can also be green, red",
         "The color of the sky is blue but sometimes it can also",
     ]
-    # prompts = [
-    #     "The color of the sky is blue but sometimes it can also be a little bit",
-    #     "The color of the sky is blue but sometimes it can also be",
-    # ]
     torch.set_printoptions(edgeitems=10)
     results = []
     for k, prompt in enumerate(prompts):
@@ -90,7 +86,7 @@ cherry is""",
         print(value[0].shape)
         print(value[1].shape)
         print(value[2].shape)
-        
+
         print(batch[:, 0, :])
         print(value[1])
         print(batch[:, 1, :])
@@ -112,7 +108,8 @@ cherry is""",
 
     # dump the KV cache
     torch.save(results, 'kv_cache.pt')
-    compare(results, dump_layer)
+    if len(results) >= 2:
+        compare(results, dump_layer)
 
 
 def main():
