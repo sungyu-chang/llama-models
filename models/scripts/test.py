@@ -99,6 +99,28 @@ for i in range(3):
     if i == 2:
         cpuresult["xv"] = [batch, sequence]
 
+
+x1 = x1.cuda()
+x2 = x2.cuda()
+x3 = x3.cuda()
+gpuresult = {} 
+for i in range(3):
+    w = result["w"][i].to("cuda")
+
+    batch = F.linear(x1, w, None)
+
+    sequence = torch.concat((F.linear(x2, w, None), F.linear(x3, w, None)), dim = 1)
+    compare_elt(batch, sequence)
+    cprint("compare gpu result", "red")
+    cprint(batch, "green")
+    cprint(sequence, "blue")
+    if i == 0:
+        gpuresult["xq"] = [batch.cpu(), sequence.cpu()]
+    if i == 1:
+        gpuresult["xk"] = [batch.cpu(), sequence.cpu()]
+    if i == 2:
+        gpuresult["xv"] = [batch.cpu(), sequence.cpu()]
+
 cprint("compare batch result of xq", "red")
 compare_elt(cpuresult["xq"][0], result["xq"][0])
 
@@ -116,3 +138,10 @@ compare_elt(cpuresult["xv"][0], result["xv"][0])
 
 cprint("compare sequence result of xv", "red")
 compare_elt(cpuresult["xv"][1], torch.concat(( result["xv"][1], result["xv"][2] ), dim = 1))
+
+
+for i in cpuresult:
+    cprint(f"compare {i} batch result", "red")
+    compare_elt(cpuresult[i][0], gpuresult[i][0])
+    cprint(f"compare {i} sequence result", "red")
+    compare_elt(cpuresult[i][1], gpuresult[i][1])

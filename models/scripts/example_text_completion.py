@@ -41,7 +41,7 @@ def run_main(
         model_parallel_size=model_parallel_size,
     )
 
-    old_prompts = [
+    prompts = [
         "The color of the sky is blue but sometimes it can also be",
         """\
 apple is pomme,
@@ -50,18 +50,14 @@ cherry is""",
         "1, 2, 3, 5, 8, 13",
         "ba ba black sheep, have you any wool?",
     ]
-    # prompts = [
-    #     "The color of the sky is blue but sometimes it can also be green, red",
-    #     "The color of the sky is blue but sometimes it can also be green, red",
-    # ]
+    prompts = [
+        "ba ba black sheep, have you any wool?",
+        "ba ba black sheep, have you any wool? yes sir, yes sir, three bags full."
+    ]
     prompts = [
         "The color of the sky is blue but sometimes it can also be green, red",
         "The color of the sky is blue but sometimes it can also",
     ]
-    # prompts = [
-    #     "The color of the sky is blue but sometimes it can also be a little bit",
-    #     "The color of the sky is blue but sometimes it can also be",
-    # ]
     torch.set_printoptions(edgeitems=10)
     results = []
     for k, prompt in enumerate(prompts):
@@ -81,34 +77,34 @@ cherry is""",
         print("\n==================================\n")
 
     torch.save(current_result, "rt_dump.pt")
-    for key, value in current_result.items():
-
-        if key == "w":
-            continue
-        cprint(f"comapring the value of {key}", "light_blue")
-        batch = value[0]
-        print(value[0].shape)
-        print(value[1].shape)
-        print(value[2].shape)
-
-        print(batch[:, 0, :])
-        print(value[1])
-        print(batch[:, 1, :])
-        print(value[2])
-        cprint("first row", "green")
-
-        print(value[0][:, 0, :].shape)
-        compare_elt(torch.unsqueeze( value[0][:, 0, :], 1 ), value[1])
-
-        cprint("second row", "green")
-
-        compare_elt(torch.unsqueeze( value[0][:, 1, :], 1 ), value[2])
+    # for key, value in current_result.items():
+    #
+    #     if key == "w":
+    #         continue
+    #     cprint(f"comapring the value of {key}", "light_blue")
+    #     batch = value[0]
+    #     print(value[0].shape)
+    #     print(value[1].shape)
+    #     print(value[2].shape)
+    #
+    #     print(batch[:, 0, :])
+    #     print(value[1])
+    #     print(batch[:, 1, :])
+    #     print(value[2])
+    #     cprint("first row", "green")
+    #
+    #     print(value[0][:, 0, :].shape)
+    #     compare_elt(torch.unsqueeze( value[0][:, 0, :], 1 ), value[1])
+    #
+    #     cprint("second row", "green")
+    #
+    #     compare_elt(torch.unsqueeze( value[0][:, 1, :], 1 ), value[2])
 
 
     # dump the KV cache
     torch.save(results, 'kv_cache.pt')
-    if len(results) >= 2:
-        compare(results, dump_layer)
+    # if len(results) >= 2:
+    #     compare(results, dump_layer)
 
 
 def main():
