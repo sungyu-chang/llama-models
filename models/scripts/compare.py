@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from termcolor import cprint
 
 def compare_elt(t1, t2, print_index=True):
@@ -48,6 +49,32 @@ def compare(results, token_len: int, detail_print = False):
     else:
         cprint("KV is not equal", "light_green")
 
+# sequence processing, multiply then concat
+def mulcat(W, x1, x2):
+    return torch.concat(( F.linear(x1, W), F.linear(x2, W) ), dim=0)
+
+# batch processing, concat then multiply
+def catmul(W, x1, x2):
+    return F.linear(torch.concat((x1, x2), dim=0), W)
+
+# compare the batch and sequence results
+def mycp(W, x1, x2, print_index=True):
+    compare_elt(mulcat(W, x1, x2), catmul(W, x1, x2), print_index)
+
+def compare_batch_sequence(w_cpu, x1_cpu, x2_cpu, w_gpu, x1_gpu, x2_gpu):
+    cprint("==========================================", "blue")
+    cprint("compare batch and sequence results from GPU", "green")
+    mycp(w_gpu, x1_gpu, x2_gpu)
+    cprint("==========================================", "blue")
+    cprint("compare batch and sequence results from CPU", "green")
+    mycp(w_cpu, x1_cpu, x2_cpu)
+
+    cprint("==========================================", "blue")
+    cprint("compare sequence results from GPU with CPU's results", "green")
+    compare_elt(mulcat(w_gpu, x1_gpu, x2_gpu).cpu(), catmul(w_cpu, x1_cpu, x2_cpu))
+    cprint("==========================================", "blue")
+    cprint("compare batch results from GPU with CPU's results", "green")
+    compare_elt(catmul(w_gpu, x1_gpu, x2_gpu).cpu(), catmul(w_cpu, x1_cpu, x2_cpu))
 if __name__ == "__main__":
     results = torch.load('kv_cache.pt')
     from ..llama3.reference_impl.generation import dump_layer

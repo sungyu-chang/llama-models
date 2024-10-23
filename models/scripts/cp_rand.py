@@ -1,50 +1,53 @@
 import torch
 from pathlib import Path
 from termcolor import cprint
-import torch.nn.functional as F
 
-from .compare import compare_elt
+from .compare import compare, compare_elt, compare_batch_sequence
 
 rand_file = Path('rand.pt')
 if rand_file.is_file():
     rand_gpu = torch.load('rand.pt', map_location='cuda')
-    A = rand_gpu["A"]
-    B = rand_gpu["B"]
-    C = rand_gpu["C"]
+    w_gpu = rand_gpu["A"]
+    x1_gpu = rand_gpu["B"]
+    x2_gpu = rand_gpu["C"]
 else:
+    w_gpu = torch.rand(4096, 4096, device='cuda', dtype=torch.bfloat16)
+    x1_gpu = torch.rand(1, 4096, device='cuda', dtype=torch.bfloat16)
+    x2_gpu = torch.rand(1, 4096, device='cuda', dtype=torch.bfloat16)
+
+w_cpu = w_gpu.to('cpu')
+x1_cpu = x1_gpu.to('cpu')
+x2_cpu = x2_gpu.to('cpu')
+
+def compare_saved_data():
+    data = torch.load("data.pt", map_location='cuda')
+    data_cpu = torch.load("data.pt", map_location='cpu')
+    num_weight = 3
+
+    for index in range(num_weight):
+        cprint(f"====== comapre {index}th weight from saved data ========", "red")
+        compare_batch_sequence(data_cpu[f"w{index}"], data_cpu["x2"], data_cpu["x3"], data[f"w{index}"], data["x2"], data["x3"])
+
+
+def compare_random(save = False):
+    cprint("====== generate random matrix and compare ========", "red")
     A = torch.rand(4096, 4096, device='cuda', dtype=torch.bfloat16)
     B = torch.rand(1, 4096, device='cuda', dtype=torch.bfloat16)
     C = torch.rand(1, 4096, device='cuda', dtype=torch.bfloat16)
 
-A1 = A.to('cpu')
-B1 = B.to('cpu')
-C1 = C.to('cpu')
+    A1 = A.to('cpu')
+    B1 = B.to('cpu')
+    C1 = C.to('cpu')
 
-def mulcat(W, B, C):
-    return torch.concat(( F.linear(B, W), F.linear(C, W) ), dim=0)
-def catmul(W, B, C):
-    return F.linear(torch.concat((B, C), dim=0), W)
-def mycp(W, B, C):
-    compare_elt(mulcat(W, B, C), catmul(W, B, C))
+    compare_batch_sequence(A1, B1, C1, A, B, C)
+    rand = {} 
+    rand["A"] = A
+    rand["B"] = B
+    rand["C"] = C
+    if save:
+        torch.save(rand, "rand.pt")
 
-cprint("compare two results from gpu")
-mycp(A, B, C)
-cprint("compare two results from cpu")
-mycp(A1, B1, C1)
+if __name__ == "__main__":
+    compare_saved_data()
+    compare_random()
 
-rand = {} 
-rand["A"] = A
-rand["B"] = B
-rand["C"] = C
-if not rand_file.is_file():
-    torch.save(rand, "rand.pt")
-
-data = torch.load("data.pt", map_location='cuda')
-data_cpu = torch.load("data.pt", map_location='cpu')
-
-mycp(data["w0"], data["x2"], data["x3"])
-mycp(data["w1"], data["x2"], data["x3"])
-mycp(data["w2"], data["x2"], data["x3"])
-mycp(data_cpu["w0"], data_cpu["x2"], data_cpu["x3"])
-mycp(data_cpu["w1"], data_cpu["x2"], data_cpu["x3"])
-mycp(data_cpu["w2"], data_cpu["x2"], data_cpu["x3"])
