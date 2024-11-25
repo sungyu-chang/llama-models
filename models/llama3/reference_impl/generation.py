@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Generator, List, Optional
 
 import torch
+from torch._C import dtype
 import torch.nn.functional as F
 from fairscale.nn.model_parallel.initialize import (
     get_model_parallel_rank,
@@ -144,6 +145,38 @@ class Llama:
         self.model = model
         self.tokenizer = tokenizer
         self.formatter = ChatFormat(tokenizer)
+    # store_start is the start point to restore kv, start_end is the end
+    # the store_end should be the index of the last prompt token(not inclusive)
+
+    def prefill(self, tokens, stored_kv, store_start, store_end):
+        self.model.forward(tokens[:, 0:store_start], 0)
+
+        layer_idx = 0
+        for tblk in self.model.layers:
+            tblk.attention.cache_k[:, store_start:store_end] = stored_kv[layer_idx][0][:, store_start:store_end].to('cuda')
+            tblk.attention.cache_v[:, store_start:store_end] = stored_kv[layer_idx][1][:, store_start:store_end].to('cuda')
+            layer_idx+=1
+        
+    def perplexity(self, prompt: str) -> float:
+        prompt_tokens = self.tokenizer.encode(prompt, bos=True, eos=False)
+        prompt_len = len(prompt_tokens)
+        prompt_tokens = torch.tensor(prompt_tokens, dtype=torch.long, device="cuda").unsqueeze(0)
+
+        # pre_pos = 0
+        # total_prob = torch.tensor(0, dtype=torch.float)
+        # for cur_pos in range(1, prompt_len):
+        #     logits = self.model.forward(prompt_tokens[:, pre_pos:cur_pos], pre_pos)
+        #
+        #
+        #     log_probs = F.log_softmax(logits.squeeze(), dim=0)
+        #     total_prob += log_probs[prompt_tokens[0, pre_pos]]
+        #     pre_pos = cur_pos
+
+        logits = self.model.forward(prompt_tokens[:, 0:prompt_len], 0)
+        log_probs = F.log_softmax(logits, dim=-1)
+        token_log_probs = log_probs.gather(2, prompt_tokens.unsqueeze(-1)).squeeze(-1)
+        total_prob = token_log_probs.sum()
+        return torch.exp(-total_prob / prompt_len).item()
 
     @torch.inference_mode()
     def generate(
@@ -154,6 +187,9 @@ class Llama:
         temperature: float = 0.6,
         top_p: float = 0.9,
         logprobs: bool = False,
+        custom_prefill: bool = False,
+        stored_kv: List = [],
+        dump_kv: List = [],
     ) -> Generator:
         params = self.model.params
         for token in model_input.tokens:
@@ -184,6 +220,11 @@ class Llama:
 
         prev_pos = 0
         eos_reached = torch.tensor([False] * bsz, device="cuda")
+
+        if custom_prefill:
+            self.prefill(tokens, stored_kv, min_prompt_len // 2 - 1, min_prompt_len)
+
+
         input_text_mask = tokens != pad_id
         if min_prompt_len == total_len:
             logits = self.model.forward(tokens, prev_pos)
@@ -196,9 +237,12 @@ class Llama:
 
         stop_tokens = torch.tensor(self.tokenizer.stop_tokens)
 
-        range_list = range(min_prompt_len, total_len)
-        if min_prompt_len > 13:
-            range_list = range(min_prompt_len - 4, min_prompt_len + 1, 2)
+        range_list = range(min_prompt_len - 1, total_len)
+        if custom_prefill:
+            range_list = range(min_prompt_len, total_len)
+            prev_pos = min_prompt_len - 1
+        # if min_prompt_len > 13:
+        #     range_list = range(min_prompt_len - 4, min_prompt_len + 1, 2)
 
 
         for cur_pos in range_list:
@@ -252,7 +296,9 @@ class Llama:
 
             prev_pos = cur_pos
             if all(eos_reached):
+                self.dump_kv(dump_kv, cur_pos)
                 break
+        self.dump_kv(dump_kv, total_len)
     def dump_kv(self, hash_result: List, cur_pos: int):
 
         cprint("kv_cache dumped", "red")
@@ -276,6 +322,9 @@ class Llama:
         top_p: float = 0.9,
         max_gen_len: Optional[int] = None,
         logprobs: bool = False,
+        custom_prefill: bool = False,
+        stored_kv: List = [],
+        dump_kv: List = [],
     ) -> CompletionPrediction:
         if (
             max_gen_len is None
@@ -296,6 +345,9 @@ class Llama:
             temperature=temperature,
             top_p=top_p,
             logprobs=logprobs,
+            custom_prefill = custom_prefill,
+            stored_kv = stored_kv,
+            dump_kv = dump_kv,
         ):
             tokens.append(result.token)
             cprint(f"current_token: {result.text}", "green")

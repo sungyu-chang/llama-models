@@ -14,6 +14,34 @@ def compare_elt(t1, t2, print_index=True):
         for index in zip(*different_indices):
             print(f"t1{index}: {t1[index]} vs t2{index}: {t2[index]}")
     cprint(f"count of difference is {count}", "yellow")
+    return count
+
+# compare two tensor's column, which column is same which is not
+# t1's shape is [bsz, token_len, 8, 128]
+def compare_column(t1, t2, print_index: bool = True):
+    t1 = t1.squeeze(0).reshape(-1, 1024)
+    t2 = t2.squeeze(0).reshape(-1, 1024)
+    equal = True
+    for i in range(min(t1.shape[0],t2.shape[0])):
+        result = []
+        num_diff_elt = compare_elt(t1[i], t2[i], False)
+        if num_diff_elt != 0:
+            result.append(i)
+        if print_index:
+            print(result)
+        if result:
+            equal = False
+    if equal:
+        print("The two tensor is different")
+
+def compare_dump_kvcache(t1, t2, print_index=True):
+    if len(t1) != len(t2):
+        cprint("tensor length different", color="red")
+    for i in range(min(len(t1), len(t2))):
+        print(f"comparing the {i}'s K cache")
+        compare_column(t1[i][0], t2[i][0], print_index)
+        print(f"comparing the {i}'s V cache")
+        compare_column(t1[i][1], t2[i][1], print_index)
 
 def compare(results, token_len: int, detail_print = False):
 

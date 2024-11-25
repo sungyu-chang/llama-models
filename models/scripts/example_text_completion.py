@@ -17,7 +17,7 @@ import torch
 from models.llama3.reference_impl.generation import Llama, dump_layer
 from models.llama3.reference_impl.model import current_result
 from termcolor import cprint
-from compare import compare, compare_elt
+from compare import compare, compare_dump_kvcache, compare_elt
 
 THIS_DIR = Path(__file__).parent.resolve()
 
@@ -56,61 +56,83 @@ cherry is""",
     ]
     prompts = [
         "The color of the sky is blue but sometimes it can also be green, red",
-        "The color of the sky is blue but sometimes it can also",
     ]
     torch.set_printoptions(edgeitems=10)
     results = []
     for k, prompt in enumerate(prompts):
         tensor_result = []
+        # pass in stored kv cache for recovery
+        # dump kv cache at the end of execution
+        dump_kv_normal = []
         result = generator.text_completion(
             prompt,
             hex_result=tensor_result,
             temperature=0,
             top_p=0.9,
             max_gen_len=max_gen_len,
-            logprobs=False,
+            logprobs=True,
+            dump_kv=dump_kv_normal,
         )
         results.append(tensor_result)
 
         cprint(f"{prompt}", end="")
         cprint(f"{result.generation}", color="yellow")
         print("\n==================================\n")
-
-    torch.save(current_result, "rt_dump.pt")
-    for key, value in current_result.items():
-
-        if key == "w":
-            continue
-        cprint(f"comapring the value of {key}", "light_blue")
-        batch = value[0]
-        print(value[0].shape)
-        print(value[1].shape)
-        print(value[2].shape)
-
-        print(batch[:, 0, :])
-        print(value[1])
-        print(batch[:, 1, :])
-        print(value[2])
-        cprint("first row", "green")
-
-        print(value[0][:, 0, :].shape)
-        compare_elt(torch.unsqueeze( value[0][:, 0, :], 1 ), value[1])
-
-        cprint("second row", "green")
-
-        compare_elt(torch.unsqueeze( value[0][:, 1, :], 1 ), value[2])
-
-        # if torch.allclose(batch[:, 1, :], value[2], rtol=0):
-        #     print(f"{key} is equal")
-        # else:
-        #     print(f"{key} is not equal")
+        pp = generator.perplexity(prompt)
+        cprint(f"perplextiy is {pp}", color="red")
 
 
-    # dump the KV cache
-    torch.save(results, 'kv_cache.pt')
-    if len(results) >= 2:
-        compare(results, dump_layer)
+        dump_kv_custom = []
+        result = generator.text_completion(
+            prompt,
+            hex_result=tensor_result,
+            temperature=0,
+            top_p=0.9,
+            max_gen_len=max_gen_len,
+            logprobs=True,
+            custom_prefill=True,
+            stored_kv=dump_kv_normal,
+            dump_kv=dump_kv_custom,
+        )
+        results.append(tensor_result)
 
+        cprint(f"{prompt}", end="")
+        cprint(f"{result.generation}", color="yellow")
+        print("\n==================================\n")
+        pp = generator.perplexity(prompt)
+        cprint(f"perplextiy is {pp}", color="red")
+        compare_dump_kvcache(dump_kv_custom, dump_kv_normal, False)
+
+    # torch.save(current_result, "rt_dump.pt")
+    # for key, value in current_result.items():
+    #
+    #     if key == "w":
+    #         continue
+    #     cprint(f"comapring the value of {key}", "light_blue")
+    #     batch = value[0]
+    #     print(value[0].shape)
+    #     print(value[1].shape)
+    #     print(value[2].shape)
+    #
+    #     print(batch[:, 0, :])
+    #     print(value[1])
+    #     print(batch[:, 1, :])
+    #     print(value[2])
+    #     cprint("first row", "green")
+    #
+    #     print(value[0][:, 0, :].shape)
+    #     compare_elt(torch.unsqueeze( value[0][:, 0, :], 1 ), value[1])
+    #
+    #     cprint("second row", "green")
+    #
+    #     compare_elt(torch.unsqueeze( value[0][:, 1, :], 1 ), value[2])
+    #
+    #
+    # # dump the KV cache
+    # torch.save(results, 'kv_cache.pt')
+    # if len(results) >= 2:
+    #     compare(results, dump_layer)
+    #
 
 def main():
     fire.Fire(run_main)

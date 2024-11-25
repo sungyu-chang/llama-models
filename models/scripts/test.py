@@ -3,12 +3,33 @@ import torch.nn.functional as F
 import os
 from fairscale.nn.model_parallel.layers import ColumnParallelLinear
 from termcolor import cprint
-from .compare import compare_elt
+from .compare import compare, compare_elt
+import random
+import numpy as np
+seed = 42
 
 from fairscale.nn.model_parallel.initialize import (
     initialize_model_parallel,
     model_parallel_is_initialized,
 )
+random.seed(seed)
+
+os.environ['PYTHONHASHSEED'] = str(seed)
+
+np.random.seed(seed)
+
+torch.manual_seed(seed)
+
+torch.cuda.manual_seed(seed)
+
+torch.cuda.manual_seed_all(seed)
+
+torch.backends.cudnn.deterministic = True
+
+torch.backends.cudnn.benchmark = False
+
+torch.use_deterministic_algorithms(True)
+
 if not torch.distributed.is_initialized():
     torch.distributed.init_process_group("gloo")
 
@@ -81,17 +102,37 @@ x1 = result["x"][0]
 x2 = result["x"][1]
 x3 = result["x"][2]
 
-cpuresult = {} 
+# x1_reshape = x1.view(2, 4096)
+# x2_reshape = x2.view(1, 4096)
+# x3_reshape = x3.view(1, 4096)
+# w0 = result["w"][0]
+# w1 = result["w"][1]
+# w2 = result["w"][2]
+#
+# data = {
+#     "x1": x1_reshape,
+#     "x2": x2_reshape,
+#     "x3": x3_reshape,
+#     "w0": w0,
+#     "w1": w1,
+#     "w2": w2,
+# }
+# torch.save(data, "data.pt")
+cprint("compare the input", "yellow")
+compare_elt(x1, torch.concat((x2, x3), dim = 1))
+
+breakpoint()
+cpuresult = {}
 for i in range(3):
     w = result["w"][i]
 
     batch = F.linear(x1, w, None)
 
     sequence = torch.concat((F.linear(x2, w, None), F.linear(x3, w, None)), dim = 1)
-    compare_elt(batch, sequence)
     cprint("compare cpu result", "red")
     cprint(batch, "green")
     cprint(sequence, "blue")
+    compare_elt(batch, sequence)
     if i == 0:
         cpuresult["xq"] = [batch, sequence]
     if i == 1:
@@ -103,17 +144,17 @@ for i in range(3):
 x1 = x1.cuda()
 x2 = x2.cuda()
 x3 = x3.cuda()
-gpuresult = {} 
+gpuresult = {}
 for i in range(3):
     w = result["w"][i].to("cuda")
 
     batch = F.linear(x1, w, None)
 
     sequence = torch.concat((F.linear(x2, w, None), F.linear(x3, w, None)), dim = 1)
-    compare_elt(batch, sequence)
     cprint("compare gpu result", "red")
     cprint(batch, "green")
     cprint(sequence, "blue")
+    compare_elt(batch, sequence)
     if i == 0:
         gpuresult["xq"] = [batch.cpu(), sequence.cpu()]
     if i == 1:
@@ -145,3 +186,6 @@ for i in cpuresult:
     compare_elt(cpuresult[i][0], gpuresult[i][0])
     cprint(f"compare {i} sequence result", "red")
     compare_elt(cpuresult[i][1], gpuresult[i][1])
+
+torch.save(cpuresult, 'cpu_result_es1-1.pt')
+torch.save(gpuresult, 'gpu_result_es1-1.pt')
